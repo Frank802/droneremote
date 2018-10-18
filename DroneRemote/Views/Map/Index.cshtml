@@ -1,0 +1,72 @@
+﻿@model MapViewModel
+@{
+    ViewData["Title"] = "Map";
+}
+
+<style>
+    .div-fullscreen {
+        padding-top: 0px;
+        padding-left: 0px;
+        padding-right: 0px;
+    }
+
+    .iframe-fullscreen {
+        border: 0;
+        position: relative;
+        height: 100vh;
+        width: 100%
+    }
+
+    .iframe-min {
+        border: 0;
+        position: relative;
+        height: 65vh;
+        width: 100%
+    }
+
+    .map-fullscreen {
+        position: relative;
+        height: 88vh;
+        width: 100%
+    }
+</style>
+
+<div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main div-fullscreen">
+    @if (Model.Points != null && Model.Points.Count > 0)
+    {
+        <div id="map" class="map-fullscreen"></div>
+        <script>
+            function initMap() {
+                var map = new google.maps.Map(document.getElementById('map'), {
+                    zoom: 18,
+                    center: { lat: @Model.Points.First().Latitude.ToString().Replace(',', '.'), lng: @Model.Points.First().Longitude.ToString().Replace(',', '.') },
+                    mapTypeId: 'satellite'
+                });
+
+                var data = [];
+
+                @foreach (var p in Model.Points)
+                {
+                    @:data.push({ lat:@p.Latitude.ToString().Replace(',', '.') , lng:@p.Longitude.ToString().Replace(',', '.') });
+                }
+
+                var flightPath = new google.maps.Polyline({
+                    path: data,
+                    geodesic: true,
+                    strokeColor: '#FF0000',
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2
+                });
+
+                flightPath.setMap(map);
+            }
+        </script>
+        <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY"></script>
+    }
+    else
+    {
+        <center>
+            <h4>Telemetry data not found</h4>
+        </center>
+    }
+</div>

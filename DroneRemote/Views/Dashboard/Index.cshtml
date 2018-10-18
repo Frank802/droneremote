@@ -1,0 +1,212 @@
+﻿@using Newtonsoft.Json
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<script src="~/js/chart.js"></script>
+<script type="text/javascript">
+    function DrawGraph(graphName, Ylabel, data) {
+        var ctx = document.getElementById("myChart");
+        var myChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                datasets: [{
+                    label: Ylabel,
+                    fill: false,
+                    lineTension: 0.1,
+                    backgroundColor: "rgba(75,192,192,0.4)",
+                    borderColor: "rgba(75,192,192,1)",
+                    borderCapStyle: "butt",
+                    borderDash: [],
+                    borderDashOffset: 0.0,
+                    borderJoinStyle: "miter",
+                    pointBorderColor: "rgba(75,192,192,1)",
+                    pointBackgroundColor: "#fff",
+                    pointBorderWidth: 1,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: "rgba(75,192,192,1)",
+                    pointHoverBorderColor: "rgba(220,220,220,1)",
+                    pointHoverBorderWidth: 2,
+                    pointRadius: 1,
+                    pointHitRadius: 10,
+                    data: data,
+                    spanGaps: true
+                }]
+            },
+            options: {
+                title: {
+                    display: true,
+                    text: graphName,
+                    fontSize: 14
+                },
+                legend: {
+                    display: false,
+                    //labels: {
+                    //    fontColor: 'rgb(255, 99, 132)'
+                    //}
+                },
+                tooltips: {
+                    enabled: true,
+                    callbacks: {
+                        title: function (tooltipItems, data) {
+                            return "Time: " + new Date(tooltipItems[0].xLabel).toLocaleTimeString("it-IT");
+                        }
+                    }
+                },
+                scales: {
+                    xAxes: [{
+                        type: "linear",
+                        position: "bottom",
+                        scaleLabel: {
+                            display: true,
+                            labelString: "Time"
+                        },
+                        ticks: {
+                            callback: function (value) {
+                                return new Date(value).toLocaleTimeString("it-IT");
+                            },
+                        },
+                    }],
+                    yAxes: [{
+                        scaleLabel: {
+                            display: true,
+                            labelString: Ylabel
+                        },
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }]
+                }
+            }
+        });
+
+        return;
+    }
+
+    function LoadData() {
+        document.getElementById("loader").style.display = "block";
+        var selectBox = document.getElementById("dataSelector");
+        var selectedValue = selectBox.options[selectBox.selectedIndex].value;
+        
+        $.ajax({
+            method: "POST",
+            url: "/Dashboard/LoadData",
+            data: { blobName: selectedValue },
+            success: function (result) {
+
+                if (result.startsWith("Error")) {
+                    alert(result);
+                    return;
+                }
+
+                $("#myChart").replaceWith('<canvas id="myChart" width="400" height="180"></canvas>');
+
+                var json = $.parseJSON(result);
+                var newData = [];
+
+                var graphName = "";
+                var Ylabel = "";
+
+                var selectTypeBox = document.getElementById("dataTypeSelector");
+                var selectedTypeValue = selectTypeBox.options[selectTypeBox.selectedIndex].value;
+
+                for (var i = 0; i < json.length; i++) {
+                    var obj = json[i];
+
+                    if (selectedTypeValue == "altitude" && obj.GpsAltitude > 0) {
+                        graphName = "GPS Altitude";
+                        Ylabel = "Altitude (m)";
+                        newData.push({ x: new Date(obj.Timestamp), y: obj.GpsAltitude });
+                    }                     
+                    if (selectedTypeValue == "numsat" && obj.GpsNumSat > 0) {
+                        graphName = "GPS Num Sat";
+                        Ylabel = "Num Sat";
+                        newData.push({ x: new Date(obj.Timestamp), y: obj.GpsNumSat });
+                    }   
+                    if (selectedTypeValue == "speed" && obj.GpsSpeed > 0) {
+                        graphName = "GPS Speed";
+                        Ylabel = "Speed (km/h)";
+                        newData.push({ x: new Date(obj.Timestamp), y: obj.GpsSpeed });
+                    }
+                    if (selectedTypeValue == "battery" && obj.BatteryPercentage > 0) {
+                        graphName = "Battery %";
+                        Ylabel = "Percentage (%)";
+                        newData.push({ x: new Date(obj.Timestamp), y: obj.BatteryPercentage });
+                    } 
+                }
+
+                $("#validSampleCount").text(newData.length);
+
+                DrawGraph(graphName, Ylabel, newData);
+                document.getElementById("loader").style.display = "none";
+            }
+        });
+    }
+
+</script>
+
+<div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+    <strong>Data Package:</strong>
+    
+    <select name="dataSelector" id="dataSelector" style="width: 35%; max-width: 35%; margin-right:15px;" onchange="if (this.selectedIndex) LoadData();">
+        @if (Model.CurrentData.Count == 0)
+        {
+            <option value="">Data not found</option>
+        }
+        else
+        {
+            <option value="">Select data...</option>       
+            @foreach (var data in Model.AvailableData)
+            {
+                if (data == Model.AvailableData.Last())
+                {
+                    <option value="@data" selected="selected">@data</option>
+                }
+                else
+                {
+                    <option value="@data">@data</option>
+                }
+            }
+        }
+    </select>
+
+    <strong>Data Type:</strong>
+
+    <select name="dataTypeSelector" id="dataTypeSelector" style="width: 15%; max-width: 15%; margin-right:15px;" onchange="LoadData();">
+        <option value="altitude" selected="selected">GPS Altitude</option>
+        <option value="numsat">GPS Num Sat</option>
+        <option value="speed">GPS Speed</option>
+        <option value="battery">Battery %</option>
+    </select>
+
+    <strong>Valid Samples:</strong>
+    <strong id="validSampleCount">0</strong>
+
+    <hr />
+    @if (Model.CurrentData.Count == 0)
+    {
+        <center>
+            <h4>Telemetry data not found</h4>
+        </center>
+    }
+    else
+    {
+        <canvas id="myChart" width="400" height="180"></canvas>
+        <script type="text/javascript">
+            var data = [];
+
+            @foreach (var d in Model.CurrentData)
+            {
+                @if (@d.GpsAltitude > 0)
+                {
+                    @:data.push({ x: new Date(@d.Timestamp.Year, @d.Timestamp.Month, @d.Timestamp.Day, @d.Timestamp.Hour, @d.Timestamp.Minute, @d.Timestamp.Second, @d.Timestamp.Millisecond), y:@d.GpsAltitude});
+                }
+            }
+
+            DrawGraph("GPS Altitude", "Altitude (m)", data);
+            $("#validSampleCount").text(data.length);
+        </script>
+    }
+    <div id="loader" class="loader" style="display:none"/>
+</div>

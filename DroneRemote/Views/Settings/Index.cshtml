@@ -1,0 +1,204 @@
+﻿@model SettingsViewModel
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+    <h2>Settings</h2>
+    <hr />
+    <h3>Devices</h3>
+    @if (Model != null && Model.Connections.Count > 0)
+    {
+        <button class="btn btn-danger" style="margin-top:-50px; float:right" onclick="if(confirm('Are you sure you want to clear connections?')) deleteAllConnections();">Clear Connections</button>
+    }
+    @if (Model != null && Model.Connections.Count > 0 && Model.Connections.Where(x => x.SocketType == DroneRemote.Helpers.SocketType.Data).Any())
+    {
+        int i = 1;
+        <table class="table">
+            <thead class="thead-default">
+                <tr>
+                    <th>#</th>
+                    <th>Device ID</th>
+                    <th>Destination Device ID</th>
+                    <th>State</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var connection in Model.Connections.Where(x => x.SocketType == DroneRemote.Helpers.SocketType.Data).ToList())
+                {
+                    <tr>
+                        <th scope="row">@i</th>
+                        <td>@connection.DeviceId</td>
+                        <td>@connection.ToDeviceId</td>
+                        <td>@Enum.GetName(typeof(System.Net.WebSockets.WebSocketState),connection.Socket.State)</td>
+                        <td>
+                            <button class="btn btn-@(connection.Socket.State == System.Net.WebSockets.WebSocketState.CloseSent ? "warning" : "danger")" onclick="if(confirm('Are you sure you want to close this connection?')) deleteConnection('@connection.DeviceId');">
+                                @(connection.Socket.State == System.Net.WebSockets.WebSocketState.CloseSent ? "Clear" : "Close")
+                            </button>
+                            <div id="loader-@connection.DeviceId" class="loader-delete" style="display:none;"></div>
+                        </td>
+                    </tr>
+                    i++;
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <center>
+            <h4>No device connected</h4>
+        </center>
+    }
+
+    <hr />
+    <h3>Remote Cameras</h3>
+    @if (Model != null && Model.Connections.Count > 0 && Model.Connections.Where(x => x.SocketType == DroneRemote.Helpers.SocketType.Video).Any())
+    {
+        int i = 1;
+        <table class="table">
+            <thead class="thead-default">
+                <tr>
+                    <th>#</th>
+                    <th>Device ID</th>
+                    <th>State</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var connection in Model.Connections.Where(x => x.SocketType == DroneRemote.Helpers.SocketType.Video).ToList())
+                {
+                    <tr>
+                        <th scope="row">@i</th>
+                        <td>@connection.DeviceId</td>
+                        <td>@Enum.GetName(typeof(System.Net.WebSockets.WebSocketState), connection.Socket.State)</td>
+                        <td>
+                            <button class="btn btn-@(connection.Socket.State == System.Net.WebSockets.WebSocketState.CloseSent ? "warning" : "danger")" onclick="if(confirm('Are you sure you want to close this connection?')) deleteConnection('@connection.DeviceId');">
+                                @(connection.Socket.State == System.Net.WebSockets.WebSocketState.CloseSent ? "Clear" : "Close")
+                            </button>
+                            <div id="loader-@connection.DeviceId" class="loader-delete" style="display:none;"></div>
+                        </td>
+                    </tr>
+                    i++;
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <center>
+            <h4>No remote camera connected</h4>
+        </center>
+    }
+
+    <hr />
+    <h3>Data Packages</h3>
+    @if (Model != null && Model.AvailableData.Count > 0)
+    {
+        <button class="btn btn-warning" style="margin-top:-50px; float:right" onclick="if(confirm('Are you sure you want to delete all data packages?')) deleteAllData();">Delete All</button>
+    }
+    @if (Model != null && Model.AvailableData.Count > 0)
+    {
+        int i = 1;
+        <table class="table">
+            <thead class="thead-default">
+                <tr>
+                    <th>#</th>
+                    <th>Package Name</th>
+                    <th>Timestamp</th>
+                    <th>Samples</th>
+                    <th>Loaded</th>
+                    <th></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var data in Model.AvailableData)
+                {
+                    <tr>
+                        <th scope="row">@i</th>
+                        <td>@data.Split('/').ElementAt(1)</td>
+                        <td>@data.Split('/').ElementAt(0)</td>
+                        <td>@Model.AvailableDataPackages.FirstOrDefault(x => x.PackageName == data)?.DataCount</td>
+                        <td>@(Model.AvailableDataPackages.FirstOrDefault(x => x.PackageName == data) == null ? "No" : "Yes")</td>
+                        <td>
+                            @if (Model.AvailableDataPackages.FirstOrDefault(x => x.PackageName == data) == null)
+                            {
+                                <button class="btn btn-success" onclick="loadDataPackage('@data');">Load</button>
+                                <div id="loader-load-@data" class="loader-delete" style="display:none;"></div>
+                            }
+                            else
+                            {
+                                <button class="btn btn-info" onclick="refreshDataPackage('@data');">Refresh</button>
+                                <div id="loader-refresh-@data" class="loader-delete" style="display:none;"></div>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-warning" onclick="if(confirm('Are you sure you want to delete this data package?')) deleteDataPackage('@data');">Delete</button>
+                            <div id="loader-delete-@data" class="loader-delete" style="display:none;"></div>
+                        </td>
+                    </tr>
+                    i++;
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <center>
+            <h4>No data found</h4>
+        </center>
+    }
+
+    <script>
+        function deleteConnection(item) {
+            document.getElementById("loader-" + item).style.display = "inline-block";
+
+            var url = "/Settings/DeleteConnection";
+            $.post(url, { deviceID: item }, function (data) {
+                window.location.href = "/Settings";
+            });
+        }
+
+        function deleteAllConnections() {
+            var url = "/Settings/DeleteAllConnections";
+            $.post(url, function (data) {
+                window.location.href = "/Settings";
+            });
+        }
+
+        function loadDataPackage(item) {
+            document.getElementById("loader-load-" + item).style.display = "inline-block";
+
+            var url = "/Settings/LoadDataPackage";
+            $.post(url, { packageName: item }, function (data) {
+                window.location.href = "/Settings";
+            });
+        }
+
+        function refreshDataPackage(item) {
+            document.getElementById("loader-refresh-" + item).style.display = "inline-block";
+
+            var url = "/Settings/RefreshDataPackage";
+            $.post(url, { packageName: item }, function (data) {
+                window.location.href = "/Settings";
+            });
+        }
+
+        function deleteDataPackage(item) {
+            document.getElementById("loader-delete-" + item).style.display = "inline-block";
+
+            var url = "/Settings/DeleteDataPackage";
+            $.post(url, { packageName: item }, function (data) {
+                window.location.href = "/Settings";
+            });
+        }
+
+        function deleteAllData() {
+            var url = "/Settings/DeleteAllDataPackages";
+            $.post(url, function (data) {
+                window.location.href = "/Settings";
+            });
+        }
+    </script>
+</div>
